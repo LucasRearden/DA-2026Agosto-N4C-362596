@@ -1,0 +1,149 @@
+package uy.edu.ort.batallanaval.presenters;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.context.annotation.Scope;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import uy.edu.ort.batallanaval.excepciones.BatallaNavalException;
+import uy.edu.ort.batallanaval.modelo.Batalla;
+import uy.edu.ort.batallanaval.modelo.Orientacion;
+import uy.edu.ort.batallanaval.modelo.TipoBarco;
+import uy.edu.ort.batallanaval.observador.Observable;
+import uy.edu.ort.batallanaval.observador.Observador;
+import uy.edu.ort.batallanaval.utils.ConexionNavegador;
+
+/** CU02 - segundo paso: "Desplegando la flota". */
+@RestController
+@RequestMapping("/despliegue")
+@Scope("session")
+public class PresentadorDespliegue implements Observador {
+
+    private final ConexionNavegador conexionNavegador;
+    private Batalla batalla;
+    private Orientacion orientacion = Orientacion.HORIZONTAL;
+
+    public PresentadorDespliegue(ConexionNavegador conexionNavegador) {
+        this.conexionNavegador = conexionNavegador;
+    }
+
+    @GetMapping(value = "/registrarSSE", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter registrarSSE() {
+        conexionNavegador.conectarSSE();
+        return conexionNavegador.getConexionSSE();
+    }
+
+    @GetMapping("/vistaConectada")
+    public Commands inicializarVista(@SessionAttribute(name = "batalla", required = false) Batalla enSesion) {
+        if (enSesion == null) {
+            return Commands.create(new Command("navegar", "index.html"));
+        }
+        observar(enSesion);
+        orientacion = Orientacion.HORIZONTAL;
+        Commands comandos = Commands.create(
+                ComandosTablero.inicializar(batalla, "/despliegue/clickAguasPropias", "/despliegue/clickAguasEnemigas"),
+                new Command("lugar", batalla.getLugar()),
+                new Command("orientacion", orientacion.getNombre()));
+        return comandos.add(situacion());
+    }
+
+    @PostMapping("/orientacion")
+    public Commands cambiarOrientacion(@RequestParam(defaultValue = "") String valor) throws BatallaNavalException {
+        batallaActual();
+        orientacion = orientacionLlamada(valor);
+        return Commands.create(leyenda());
+    }
+
+    @PostMapping("/clickAguasPropias")
+    public Commands clickAguasPropias(@RequestParam int coordenadaVertical, @RequestParam int coordenadaHorizontal)
+            throws BatallaNavalException {
+        batallaActual().ubicarBarco(coordenadaVertical, coordenadaHorizontal, orientacion);
+        return Commands.create(situacion());
+    }
+
+    @PostMapping("/clickAguasEnemigas")
+    public Commands clickAguasEnemigas(@RequestParam int coordenadaVertical, @RequestParam int coordenadaHorizontal)
+            throws BatallaNavalException {
+        // en preparación el estado responde "No puede ubicar barcos en aguas enemigas"
+        batallaActual().disparar(coordenadaVertical, coordenadaHorizontal);
+        return Commands.create(situacion());
+    }
+
+    @PostMapping("/librarBatalla")
+    public Commands librarBatalla() throws BatallaNavalException {
+        batallaActual().librarBatalla();
+        return Commands.create(new Command("navegar", "batalla.html"));
+    }
+
+    @PostMapping("/volver")
+    public Commands volver() {
+        return Commands.create(new Command("navegar", "index.html"));
+    }
+
+    /** Otro navegador ubicó un barco o empezó el combate en esta misma batalla. */
+    @Override
+    public void actualizar(Object evento, Observable origen) {
+        if (origen != batalla) {
+            return;
+        }
+        if (batalla.getEstado().permiteDespliegue()) {
+            conexionNavegador.enviarJSON(Commands.create(situacion()));
+        } else {
+            conexionNavegador.enviarJSON(Commands.create(new Command("batallaIniciada", "batalla.html")));
+        }
+    }
+
+    // ---------------- Auxiliares ----------------
+
+    private void observar(Batalla nueva) {
+        if (batalla != null && batalla != nueva) {
+            batalla.quitarObservador(this);
+        }
+        batalla = nueva;
+        batalla.agregarObservador(this);
+    }
+
+    private Batalla batallaActual() throws BatallaNavalException {
+        if (batalla == null) {
+            throw new BatallaNavalException("No hay una batalla seleccionada");
+        }
+        return batalla;
+    }
+
+    private Command[] situacion() {
+        List<Command> comandos = new ArrayList<>();
+        comandos.add(barcosDisponibles());
+        comandos.add(leyenda());
+        comandos.addAll(ComandosTablero.aguasPropias(batalla.getAguasPropias()));
+        return comandos.toArray(new Command[0]);
+    }
+
+    private Command barcosDisponibles() {
+        List<String> nombres = new ArrayList<>();
+        for (TipoBarco tipo : batalla.getBarcosPorUbicar()) {
+            nombres.add(tipo.getNombre() + " (" + tipo.getTamanio() + ")");
+        }
+        return new Command("barcos", nombres);
+    }
+
+    private Command leyenda() {
+        TipoBarco proximo = batalla.getProximoBarco();
+        if (proximo == null) {
+            return new Command("leyenda", "Batalla preparada");
+        }
+        return new Command("leyenda", "Posicione su " + proximo.getNombre().toLowerCase()
+                + " en forma " + orientacion.getNombre());
+    }
+
+    private Orientacion orientacionLlamada(String nombre) throws BatallaNavalException {
+        for (Orientacion o : Orientacion.values()) {
+            if (o.getNombre().equals(nombre)) {
+                return o;
+            }
+        }
+        throw new BatallaNavalException("Seleccione una orientación");
+    }
+}

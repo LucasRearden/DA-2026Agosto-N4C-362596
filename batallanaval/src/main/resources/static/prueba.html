@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Prueba del tablero</title>
+</head>
+<body>
+    <h2>Prueba del tablero</h2>
+    <p id="mensaje" style="color: darkred; font-weight: bold;"></p>
+    <div id="tablero"></div>
+
+    <script type="module">
+        import dispatcher from './CommandDispatcher.js';
+        import BattleShipBoard from './BattleShipBoard.js';
+
+        const mensaje = document.getElementById('mensaje');
+
+        new BattleShipBoard(document.getElementById('tablero'), dispatcher,
+            { anchoMaximo: 1000, altoMaximo: 500, tamanoFuente: 12, tamanoIcono: 24 });
+
+        dispatcher.mapFunctions({}, {
+            onError: (status) => { mensaje.textContent = 'Error de servidor: ' + status; },
+            onException: (texto) => { mensaje.textContent = texto; }
+        });
+
+        dispatcher.submit('/prueba/vistaConectada', {}, 'GET');
+    </script>
+</body>
+</html>
