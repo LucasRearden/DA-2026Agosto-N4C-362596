@@ -1,7 +1,12 @@
 package uy.edu.ort.batallanaval.modelo.tacticas;
 
-// Strategy: cada táctica decide a qué celda dispara la máquina.
-// El método abstracto para elegir el disparo se agrega en el paso de las tácticas.
+import uy.edu.ort.batallanaval.modelo.Celda;
+import uy.edu.ort.batallanaval.modelo.Oceano;
+
+/**
+ * Strategy: cada táctica decide a qué celda del océano rival dispara la máquina.
+ * Para agregar una táctica nueva alcanza con crear otra subclase.
+ */
 public abstract class Tactica {
 
     private String nombre;
@@ -13,6 +18,9 @@ public abstract class Tactica {
     public String getNombre() {
         return nombre;
     }
+
+    /** Devuelve una celda que todavía no fue disparada. */
+    public abstract Celda elegirDisparo(Oceano oceanoRival);
 
     @Override
     public String toString() {
