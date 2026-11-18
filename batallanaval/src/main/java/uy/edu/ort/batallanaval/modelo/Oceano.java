@@ -163,14 +163,50 @@ public class Oceano {
         return !barcos.isEmpty() && hundidos.size() == barcos.size();
     }
 
-    /** Celdas que todavía no recibieron disparos, de izquierda a derecha y de abajo hacia arriba. */
-    public List<Celda> getCeldasSinDisparar() {
+    /** Todas las celdas, de izquierda a derecha y de abajo hacia arriba. */
+    public List<Celda> getCeldas() {
         List<Celda> resultado = new ArrayList<>();
         for (int f = 0; f < filas; f++) {
             for (int c = 0; c < columnas; c++) {
-                if (!celdas[f][c].fueDisparada()) {
-                    resultado.add(celdas[f][c]);
-                }
+                resultado.add(celdas[f][c]);
+            }
+        }
+        return resultado;
+    }
+
+    /** Celdas que todavía no recibieron disparos, en el mismo orden que getCeldas(). */
+    public List<Celda> getCeldasSinDisparar() {
+        List<Celda> resultado = new ArrayList<>();
+        for (Celda celda : getCeldas()) {
+            if (!celda.fueDisparada()) {
+                resultado.add(celda);
+            }
+        }
+        return resultado;
+    }
+
+    /** La celda si está dentro del océano y todavía no recibió disparos; si no, null. */
+    public Celda celdaSinDisparar(int fila, int columna) {
+        if (!estaDentro(fila, columna) || celdas[fila][columna].fueDisparada()) {
+            return null;
+        }
+        return celdas[fila][columna];
+    }
+
+    /** true si en esa celda hubo un impacto a un barco que todavía no se hundió. */
+    public boolean esImpactoSinHundir(int fila, int columna) {
+        if (!estaDentro(fila, columna)) {
+            return false;
+        }
+        Celda celda = celdas[fila][columna];
+        return celda.fueDisparada() && celda.tieneBarco() && !celda.getBarco().estaHundido();
+    }
+
+    public List<Celda> getImpactosSinHundir() {
+        List<Celda> resultado = new ArrayList<>();
+        for (Celda celda : getCeldas()) {
+            if (esImpactoSinHundir(celda.getFila(), celda.getColumna())) {
+                resultado.add(celda);
             }
         }
         return resultado;
